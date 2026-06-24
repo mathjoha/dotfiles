@@ -1,0 +1,23 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = true
+
+[git_branch]
+always_show_remote = true
+
+[git_metrics]
+disabled = false
+
+[localip]
+disabled = false
+ssh_only = false
+
+[git_status]
+ahead = '⇡${count}'
+diverged = '⇕⇡${ahead_count}⇣${behind_count}'
+behind = '⇣${count}'
+conflicted = '🏳'
+up_to_date = '✓'
+modified = '[m\($count\)](yellow)'
+staged = '[++\($count\)](green)'
+
