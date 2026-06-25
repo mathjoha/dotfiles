@@ -211,6 +211,47 @@ check_nvim_version() {
   fi
 }
 
+# Login shells (SSH, console, `bash -l`) do NOT read ~/.bashrc on their own —
+# they read the first of ~/.bash_profile, ~/.bash_login, ~/.profile that exists.
+# Ubuntu often ships only ~/.bashrc, so PATH/prompt set there never load at login
+# (and check_starship_shell_init would falsely report "ok"). Make a login profile
+# source ~/.bashrc. bash-only: zsh/fish have different login-file semantics.
+check_login_sources_bashrc() {
+  [[ "${SHELL##*/}" == bash ]] || return 0
+  [[ -f "$HOME/.bashrc" ]] || return 0
+
+  # bash reads the FIRST of these that exists, then stops looking.
+  local profile="" f
+  for f in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+    if [[ -f "$f" ]]; then profile="$f"; break; fi
+  done
+
+  if [[ -n "$profile" ]]; then
+    if grep -q 'bashrc' "$profile" 2>/dev/null; then
+      ok "Login shells source ~/.bashrc (via $profile)"
+    else
+      # A login profile exists but ignores ~/.bashrc — don't edit it for them.
+      dep_warn "Login profile $profile does not source ~/.bashrc; login shells skip it."
+      printf '    Add this line to %s:\n' "$profile"
+      printf '      [ -f ~/.bashrc ] && . ~/.bashrc\n'
+    fi
+    return 0
+  fi
+
+  # No login profile at all — safe to create one (mirrors link_path: only act
+  # when nothing is there to clobber).
+  local dst="$HOME/.bash_profile"
+  cat > "$dst" <<'EOF'
+# ~/.bash_profile — sourced by login shells (SSH, console, `bash -l`).
+# Interactive non-login shells read ~/.bashrc directly; login shells do not,
+# so pull it in here to keep one source of truth for PATH, prompt, etc.
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+EOF
+  ok "Created $dst so login shells source ~/.bashrc"
+}
+
 check_deps() {
   log "Checking dependencies"
   local required=(nvim tmux git rg fd starship)
@@ -271,6 +312,7 @@ check_deps() {
   check_nvim_version
   check_nerd_font
   macos_terminal_reminder
+  check_login_sources_bashrc
   check_starship_shell_init
   printf '    Optional: install the himalaya CLI if you use the himalaya-vim plugin.\n'
 }
