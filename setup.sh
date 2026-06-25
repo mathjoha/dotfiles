@@ -19,6 +19,10 @@ fi
 LINK_CONFLICTS=0
 DEP_WARNINGS=0
 
+# LazyVim (main branch) requires a recent Neovim. apt's neovim on Ubuntu LTS is
+# usually too old, so we version-gate and point at the upstream release tarball.
+NVIM_MIN_VERSION="0.11.2"
+
 log()      { printf '%s==>%s %s\n' "$C_INFO" "$C_RST" "$*"; }
 ok()       { printf '%s ok%s %s\n' "$C_OK" "$C_RST" "$*"; }
 warn()     { printf '%s !!%s %s\n' "$C_WARN" "$C_RST" "$*" >&2; }
@@ -163,6 +167,91 @@ macos_terminal_reminder() {
   printf '      Quick test in the terminal: printf '\''\\uf07c \\uf002 \\uf007\\n'\''\n'
 }
 
+# True (0) if version $1 is strictly less than version $2.
+version_lt() {
+  [[ "$1" != "$2" ]] && [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" == "$1" ]]
+}
+
+# Print copy-pasteable steps to install the latest Neovim release into ~/.local
+# (no root). On macOS, defer to Homebrew.
+neovim_release_hint() {
+  if [[ "$OSTYPE" == darwin* ]]; then
+    printf '    Install/upgrade Neovim with Homebrew:\n      brew install neovim\n'
+    return
+  fi
+
+  local asset
+  case "$(uname -m)" in
+    x86_64|amd64)  asset="nvim-linux-x86_64.tar.gz" ;;
+    aarch64|arm64) asset="nvim-linux-arm64.tar.gz"  ;;
+    *)             asset="" ;;
+  esac
+
+  if [[ -z "$asset" ]]; then
+    printf '    Grab a recent Neovim from https://github.com/neovim/neovim/releases/latest\n'
+    return
+  fi
+
+  printf '    apt'\''s Neovim is too old for LazyVim; install the latest release into ~/.local:\n'
+  printf '      mkdir -p ~/.local/opt ~/.local/bin\n'
+  printf '      curl -fsSL https://github.com/neovim/neovim/releases/latest/download/%s | tar -xz -C ~/.local/opt\n' "$asset"
+  printf '      ln -sf ~/.local/opt/%s/bin/nvim ~/.local/bin/nvim\n' "${asset%.tar.gz}"
+  printf '    (ensure ~/.local/bin is on PATH, e.g. in ~/.bashrc).\n'
+}
+
+# Warn if an installed Neovim is older than LazyVim's floor.
+check_nvim_version() {
+  command -v nvim >/dev/null 2>&1 || return 0
+  local have
+  have="$(nvim --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+  [[ -n "$have" ]] || return 0
+  if version_lt "$have" "$NVIM_MIN_VERSION"; then
+    dep_warn "Neovim $have is too old — LazyVim needs >= $NVIM_MIN_VERSION."
+    neovim_release_hint
+  fi
+}
+
+# Login shells (SSH, console, `bash -l`) do NOT read ~/.bashrc on their own —
+# they read the first of ~/.bash_profile, ~/.bash_login, ~/.profile that exists.
+# Ubuntu often ships only ~/.bashrc, so PATH/prompt set there never load at login
+# (and check_starship_shell_init would falsely report "ok"). Make a login profile
+# source ~/.bashrc. bash-only: zsh/fish have different login-file semantics.
+check_login_sources_bashrc() {
+  [[ "${SHELL##*/}" == bash ]] || return 0
+  [[ -f "$HOME/.bashrc" ]] || return 0
+
+  # bash reads the FIRST of these that exists, then stops looking.
+  local profile="" f
+  for f in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+    if [[ -f "$f" ]]; then profile="$f"; break; fi
+  done
+
+  if [[ -n "$profile" ]]; then
+    if grep -q 'bashrc' "$profile" 2>/dev/null; then
+      ok "Login shells source ~/.bashrc (via $profile)"
+    else
+      # A login profile exists but ignores ~/.bashrc — don't edit it for them.
+      dep_warn "Login profile $profile does not source ~/.bashrc; login shells skip it."
+      printf '    Add this line to %s:\n' "$profile"
+      printf '      [ -f ~/.bashrc ] && . ~/.bashrc\n'
+    fi
+    return 0
+  fi
+
+  # No login profile at all — safe to create one (mirrors link_path: only act
+  # when nothing is there to clobber).
+  local dst="$HOME/.bash_profile"
+  cat > "$dst" <<'EOF'
+# ~/.bash_profile — sourced by login shells (SSH, console, `bash -l`).
+# Interactive non-login shells read ~/.bashrc directly; login shells do not,
+# so pull it in here to keep one source of truth for PATH, prompt, etc.
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+EOF
+  ok "Created $dst so login shells source ~/.bashrc"
+}
+
 check_deps() {
   log "Checking dependencies"
   local required=(nvim tmux git rg fd starship)
@@ -185,13 +274,45 @@ check_deps() {
         esac
       done
       printf '    Install with Homebrew:\n      brew install %s\n' "${formulas[*]}"
+    elif command -v apt-get >/dev/null 2>&1; then
+      # On Debian/Ubuntu the apt package names differ from the binary names:
+      #   rg -> ripgrep    fd -> fd-find
+      # nvim is handled separately: apt's neovim is too old for LazyVim.
+      local pkgs=()
+      local fd_renamed=0
+      local nvim_missing=0
+      for m in "${missing[@]}"; do
+        case "$m" in
+          rg)   pkgs+=(ripgrep) ;;
+          fd)   pkgs+=(fd-find); fd_renamed=1 ;;
+          nvim) nvim_missing=1  ;;
+          *)    pkgs+=("$m")    ;;
+        esac
+      done
+      if (( ${#pkgs[@]} )); then
+        printf '    Install with apt (packages live in the "universe" component):\n'
+        printf '      sudo apt install %s\n' "${pkgs[*]}"
+      fi
+      if (( nvim_missing )); then
+        neovim_release_hint
+      fi
+      if (( fd_renamed )); then
+        # fd-find installs the binary as "fdfind" to avoid a clash with an old
+        # "fd" package, so expose it under the name our tooling expects.
+        printf '    Note: fd-find installs the binary as %sfdfind%s, not %sfd%s.\n' "$C_WARN" "$C_RST" "$C_WARN" "$C_RST"
+        printf '    Symlink it onto your PATH:\n'
+        printf '      mkdir -p ~/.local/bin && ln -sf "$(command -v fdfind)" ~/.local/bin/fd\n'
+        printf '    (ensure ~/.local/bin is on PATH, e.g. in ~/.bashrc).\n'
+      fi
     else
       printf '    Install them via your package manager.\n'
     fi
   fi
 
+  check_nvim_version
   check_nerd_font
   macos_terminal_reminder
+  check_login_sources_bashrc
   check_starship_shell_init
   printf '    Optional: install the himalaya CLI if you use the himalaya-vim plugin.\n'
 }
