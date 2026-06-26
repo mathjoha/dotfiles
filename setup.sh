@@ -119,70 +119,9 @@ check_nerd_font() {
   printf '    After installing, set it as your terminal font.\n'
 }
 
-install_starship() {
-  if command -v starship >/dev/null 2>&1; then
-    ok "Starship already installed: $(command -v starship)"
-    return
-  fi
-
-  log "Installing starship"
-  if [[ "$OSTYPE" == darwin* ]] && command -v brew >/dev/null 2>&1; then
-    brew install starship
-  else
-    local bin_dir="/usr/local/bin"
-    if [[ ! -w "$bin_dir" ]]; then
-      bin_dir="$HOME/.local/bin"
-      mkdir -p "$bin_dir"
-    fi
-    curl -fsSL https://starship.rs/install.sh | sh -s -- -y --bin-dir "$bin_dir"
-    # Ensure ~/.local/bin is on PATH for the rest of this script
-    if [[ "$bin_dir" == "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$bin_dir:"* ]]; then
-      export PATH="$bin_dir:$PATH"
-    fi
-  fi
-
-  if command -v starship >/dev/null 2>&1; then
-    ok "Starship installed: $(command -v starship)"
-  else
-    dep_warn "Starship installation failed"
-  fi
-}
-
-check_starship_shell_init() {
-  local shell_name="${SHELL##*/}"
-  local init_line
-  local rcfile
-
-  case "$shell_name" in
-    zsh)
-      init_line='eval "$(starship init zsh)"'
-      rcfile="$HOME/.zshrc"
-      ;;
-    bash)
-      init_line='eval "$(starship init bash)"'
-      rcfile="$HOME/.bashrc"
-      ;;
-    fish)
-      init_line='starship init fish | source'
-      rcfile="$HOME/.config/fish/config.fish"
-      ;;
-    *)
-      dep_warn "Unknown shell ($SHELL) — wire up starship init manually."
-      printf '    https://starship.rs/#step-2-set-up-your-shell-to-use-starship\n'
-      return 0
-      ;;
-  esac
-
-  if [[ -f "$rcfile" ]] && grep -q 'starship init' "$rcfile" 2>/dev/null; then
-    ok "Starship shell init already in $rcfile"
-    return 0
-  fi
-
-  # Create rc file if missing, append init line
-  mkdir -p "$(dirname "$rcfile")"
-  printf '\n# Starship prompt\n%s\n' "$init_line" >> "$rcfile"
-  ok "Starship shell init added to $rcfile"
-}
+# Starship install + shell wiring (shared with scripts/starship.sh)
+# shellcheck source=scripts/starship.sh
+source "$SCRIPT_DIR/scripts/starship.sh"
 
 macos_terminal_reminder() {
   [[ "$OSTYPE" == darwin* ]] || return 0
@@ -338,7 +277,7 @@ check_deps() {
   check_nerd_font
   macos_terminal_reminder
   check_login_sources_bashrc
-  check_starship_shell_init
+  wire_starship_shell_init
   printf '    Optional: install the himalaya CLI if you use the himalaya-vim plugin.\n'
 }
 
