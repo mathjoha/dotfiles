@@ -1,0 +1,28 @@
+[include]
+    path = ~/.gitconfig.local
+
+[core]
+    editor = nvim
+
+[init]
+    defaultBranch = main
+
+[push]
+    autoSetupRemote = true
+
+[pull]
+    rebase = true
+
+[alias]
+    la = log --all --graph --oneline --decorate
+    st = status -sb
+    co = checkout
+    cb = checkout -b
+    cm = commit -m
+    ca = commit --amend --no-edit
+    df = diff
+    ds = diff --staged
+    br = branch
+    sw = switch
+    unstage = reset HEAD --
+    last = log -1 HEAD

@@ -9,6 +9,8 @@ TMUX_SRC="$SCRIPT_DIR/tmux/.tmux.conf"
 TMUX_DST="$HOME/.tmux.conf"
 STARSHIP_SRC="$SCRIPT_DIR/starship/starship.toml"
 STARSHIP_DST="$HOME/.config/starship.toml"
+GIT_SRC="$SCRIPT_DIR/git/.gitconfig"
+GIT_DST="$HOME/.gitconfig"
 
 if [[ -t 1 ]]; then
   C_OK=$'\033[1;32m'; C_WARN=$'\033[1;33m'; C_INFO=$'\033[1;34m'; C_RST=$'\033[0m'
@@ -322,6 +324,14 @@ main() {
   link_path "$NVIM_SRC" "$NVIM_DST" "neovim config"
   link_path "$TMUX_SRC" "$TMUX_DST" "tmux config"
   link_path "$STARSHIP_SRC" "$STARSHIP_DST" "starship config"
+  link_path "$GIT_SRC" "$GIT_DST" "git config"
+
+  # Remind about per-machine identity if not yet configured
+  if [[ ! -f "$HOME/.gitconfig.local" ]]; then
+    log "Create ~/.gitconfig.local with your identity:"
+    printf '    [user]\n        name = Your Name\n        email = you@example.com\n'
+  fi
+
   check_deps
 
   if (( LINK_CONFLICTS > 0 )); then
