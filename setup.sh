@@ -119,24 +119,52 @@ check_nerd_font() {
   printf '    After installing, set it as your terminal font.\n'
 }
 
+install_starship() {
+  if command -v starship >/dev/null 2>&1; then
+    ok "Starship already installed: $(command -v starship)"
+    return
+  fi
+
+  log "Installing starship"
+  if [[ "$OSTYPE" == darwin* ]] && command -v brew >/dev/null 2>&1; then
+    brew install starship
+  else
+    local bin_dir="/usr/local/bin"
+    if [[ ! -w "$bin_dir" ]]; then
+      bin_dir="$HOME/.local/bin"
+      mkdir -p "$bin_dir"
+    fi
+    curl -fsSL https://starship.rs/install.sh | sh -s -- -y --bin-dir "$bin_dir"
+    # Ensure ~/.local/bin is on PATH for the rest of this script
+    if [[ "$bin_dir" == "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$bin_dir:"* ]]; then
+      export PATH="$bin_dir:$PATH"
+    fi
+  fi
+
+  if command -v starship >/dev/null 2>&1; then
+    ok "Starship installed: $(command -v starship)"
+  else
+    dep_warn "Starship installation failed"
+  fi
+}
+
 check_starship_shell_init() {
   local shell_name="${SHELL##*/}"
   local init_line
-  local -a candidates=()
+  local rcfile
 
   case "$shell_name" in
     zsh)
       init_line='eval "$(starship init zsh)"'
-      candidates=("$HOME/.zshrc")
+      rcfile="$HOME/.zshrc"
       ;;
     bash)
       init_line='eval "$(starship init bash)"'
-      # macOS login shells read .bash_profile; interactive non-login read .bashrc.
-      candidates=("$HOME/.bashrc" "$HOME/.bash_profile")
+      rcfile="$HOME/.bashrc"
       ;;
     fish)
       init_line='starship init fish | source'
-      candidates=("$HOME/.config/fish/config.fish")
+      rcfile="$HOME/.config/fish/config.fish"
       ;;
     *)
       dep_warn "Unknown shell ($SHELL) — wire up starship init manually."
@@ -145,18 +173,15 @@ check_starship_shell_init() {
       ;;
   esac
 
-  local rcfile
-  for rcfile in "${candidates[@]}"; do
-    if [[ -f "$rcfile" ]] && grep -q 'starship init' "$rcfile" 2>/dev/null; then
-      ok "Starship shell init found in $rcfile"
-      return 0
-    fi
-  done
+  if [[ -f "$rcfile" ]] && grep -q 'starship init' "$rcfile" 2>/dev/null; then
+    ok "Starship shell init already in $rcfile"
+    return 0
+  fi
 
-  dep_warn "Starship shell init not found in your $shell_name rc."
-  printf '    Add this line to %s (create the file if missing):\n' "${candidates[0]}"
-  printf '      %s\n' "$init_line"
-  printf '    Then open a new shell.\n'
+  # Create rc file if missing, append init line
+  mkdir -p "$(dirname "$rcfile")"
+  printf '\n# Starship prompt\n%s\n' "$init_line" >> "$rcfile"
+  ok "Starship shell init added to $rcfile"
 }
 
 macos_terminal_reminder() {
@@ -322,6 +347,7 @@ main() {
   link_path "$NVIM_SRC" "$NVIM_DST" "neovim config"
   link_path "$TMUX_SRC" "$TMUX_DST" "tmux config"
   link_path "$STARSHIP_SRC" "$STARSHIP_DST" "starship config"
+  install_starship
   check_deps
 
   if (( LINK_CONFLICTS > 0 )); then
