@@ -119,45 +119,9 @@ check_nerd_font() {
   printf '    After installing, set it as your terminal font.\n'
 }
 
-check_starship_shell_init() {
-  local shell_name="${SHELL##*/}"
-  local init_line
-  local -a candidates=()
-
-  case "$shell_name" in
-    zsh)
-      init_line='eval "$(starship init zsh)"'
-      candidates=("$HOME/.zshrc")
-      ;;
-    bash)
-      init_line='eval "$(starship init bash)"'
-      # macOS login shells read .bash_profile; interactive non-login read .bashrc.
-      candidates=("$HOME/.bashrc" "$HOME/.bash_profile")
-      ;;
-    fish)
-      init_line='starship init fish | source'
-      candidates=("$HOME/.config/fish/config.fish")
-      ;;
-    *)
-      dep_warn "Unknown shell ($SHELL) — wire up starship init manually."
-      printf '    https://starship.rs/#step-2-set-up-your-shell-to-use-starship\n'
-      return 0
-      ;;
-  esac
-
-  local rcfile
-  for rcfile in "${candidates[@]}"; do
-    if [[ -f "$rcfile" ]] && grep -q 'starship init' "$rcfile" 2>/dev/null; then
-      ok "Starship shell init found in $rcfile"
-      return 0
-    fi
-  done
-
-  dep_warn "Starship shell init not found in your $shell_name rc."
-  printf '    Add this line to %s (create the file if missing):\n' "${candidates[0]}"
-  printf '      %s\n' "$init_line"
-  printf '    Then open a new shell.\n'
-}
+# Starship install + shell wiring (shared with scripts/starship.sh)
+# shellcheck source=scripts/starship.sh
+source "$SCRIPT_DIR/scripts/starship.sh"
 
 macos_terminal_reminder() {
   [[ "$OSTYPE" == darwin* ]] || return 0
@@ -313,7 +277,7 @@ check_deps() {
   check_nerd_font
   macos_terminal_reminder
   check_login_sources_bashrc
-  check_starship_shell_init
+  wire_starship_shell_init
   printf '    Optional: install the himalaya CLI if you use the himalaya-vim plugin.\n'
 }
 
@@ -322,6 +286,7 @@ main() {
   link_path "$NVIM_SRC" "$NVIM_DST" "neovim config"
   link_path "$TMUX_SRC" "$TMUX_DST" "tmux config"
   link_path "$STARSHIP_SRC" "$STARSHIP_DST" "starship config"
+  install_starship
   check_deps
 
   if (( LINK_CONFLICTS > 0 )); then
