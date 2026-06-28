@@ -14,7 +14,8 @@
     rebase = true
 
 [alias]
-    la = log --all --graph --oneline --decorate
+    la = log --all --graph
+    lg = log --all --graph --oneline --decorate
     st = status -sb
     co = checkout
     cb = checkout -b
