@@ -3,8 +3,10 @@ vim.opt.relativenumber = false
 
 vim.opt.list = true
 vim.opt.listchars = {
-  tab = "──",
-  space = "·",
-  trail = "•",
-  nbsp = "␣",
+	tab = "──",
+	space = "·",
+	trail = "•",
+	nbsp = "␣",
 }
+
+vim.opt.mouse = ""
