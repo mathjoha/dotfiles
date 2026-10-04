@@ -53,7 +53,12 @@ install_tmux_plugins() {
     return 0
   fi
 
-  export TMUX_PLUGIN_MANAGER_PATH="$HOME/.tmux/plugins"
+  # tpm reads TMUX_PLUGIN_MANAGER_PATH from the tmux server's environment,
+  # not the shell's — a server started before tpm was in .tmux.conf doesn't
+  # have it and the installer aborts. Seed any running server first.
+  export TMUX_PLUGIN_MANAGER_PATH="$HOME/.tmux/plugins/"
+  # Fails harmlessly when no server is running (that case works without it)
+  tmux set-environment -g TMUX_PLUGIN_MANAGER_PATH "$TMUX_PLUGIN_MANAGER_PATH" 2>/dev/null || true
   if ! "$installer" >/dev/null 2>&1; then
     dep_warn "TPM headless plugin install failed — press prefix+I inside tmux instead."
     return 0
