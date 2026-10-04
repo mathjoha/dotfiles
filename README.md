@@ -56,8 +56,19 @@ brew install neovim tmux starship ripgrep fd
   - `tmux.lua` — `vim-tmux-navigator` for Ctrl-h/j/k/l pane navigation (paired with `tmux/.tmux.conf`).
   - `himalaya.lua` — `himalaya-vim` email client.
   - `fzf.lua` — `junegunn/fzf` + `fzf.vim`.
-- `tmux/.tmux.conf` — terminal defaults, mouse on, and the tmux side of seamless Vim/tmux Ctrl-h/j/k/l navigation.
+- `tmux/.tmux.conf` — terminal defaults (mouse off), the tmux side of seamless Vim/tmux Ctrl-h/j/k/l navigation, and TPM-managed session persistence (tmux-resurrect + tmux-continuum).
 - `starship/starship.toml` — Starship prompt config. Reloads automatically on the next prompt render — no command needed.
+- `scripts/` — source-or-standalone helpers used by `setup.sh`: `starship.sh` (binary install + shell wiring) and `tmux.sh` (TPM clone, headless plugin install, persistent-history wiring).
+- `git/gitignore_global` — global gitignore (symlinked to `~/.gitignore_global`, wired via `core.excludesfile`); keeps `Session.vim` out of `git status` everywhere.
+
+## Session persistence
+
+tmux sessions survive reboots. `setup.sh` clones [TPM](https://github.com/tmux-plugins/tpm) and installs [tmux-resurrect](https://github.com/tmux-plugins/tmux-resurrect) + [tmux-continuum](https://github.com/tmux-plugins/tmux-continuum) headlessly (no `prefix + I` needed, though it still works).
+
+- **Automatic**: continuum autosaves every 15 minutes and restores the last saved state when the tmux server starts after a reboot — windows, panes, working directories, and visible pane text included.
+- **Manual**: save with `prefix + Ctrl-s`, restore with `prefix + Ctrl-r`.
+- **Neovim**: panes that were running nvim reopen it from a `Session.vim` written automatically on exit (only when inside tmux). `Session.vim` files are globally gitignored via `git/gitignore_global`.
+- **Shell history**: restored panes keep up-arrow history. `setup.sh` wires persistent history into `~/.bashrc` (`histappend` + `history -a` on every prompt) or `~/.zshrc` (`INC_APPEND_HISTORY`), depending on `$SHELL` — tmux-resurrect itself no longer supports history saving. Re-runnable standalone for other shells: `./scripts/tmux.sh --no-config`.
 
 ## Updating plugins
 
