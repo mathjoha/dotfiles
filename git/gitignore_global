@@ -1,0 +1,3 @@
+# Ignored in every repo (core.excludesfile)
+# Session files written by nvim for tmux-resurrect restore
+Session.vim

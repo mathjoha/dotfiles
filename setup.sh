@@ -11,6 +11,8 @@ STARSHIP_SRC="$SCRIPT_DIR/starship/starship.toml"
 STARSHIP_DST="$HOME/.config/starship.toml"
 GIT_SRC="$SCRIPT_DIR/git/.gitconfig"
 GIT_DST="$HOME/.gitconfig"
+GITIGNORE_SRC="$SCRIPT_DIR/git/gitignore_global"
+GITIGNORE_DST="$HOME/.gitignore_global"
 
 if [[ -t 1 ]]; then
   C_OK=$'\033[1;32m'; C_WARN=$'\033[1;33m'; C_INFO=$'\033[1;34m'; C_RST=$'\033[0m'
@@ -124,6 +126,10 @@ check_nerd_font() {
 # Starship install + shell wiring (shared with scripts/starship.sh)
 # shellcheck source=scripts/starship.sh
 source "$SCRIPT_DIR/scripts/starship.sh"
+
+# tmux persistence: TPM, plugins, history wiring (shared with scripts/tmux.sh)
+# shellcheck source=scripts/tmux.sh
+source "$SCRIPT_DIR/scripts/tmux.sh"
 
 macos_terminal_reminder() {
   [[ "$OSTYPE" == darwin* ]] || return 0
@@ -280,6 +286,7 @@ check_deps() {
   macos_terminal_reminder
   check_login_sources_bashrc
   wire_starship_shell_init
+  wire_history_persistence
   printf '    Optional: install the himalaya CLI if you use the himalaya-vim plugin.\n'
 }
 
@@ -290,6 +297,7 @@ main() {
   link_path "$STARSHIP_SRC" "$STARSHIP_DST" "starship config"
 
   link_path "$GIT_SRC" "$GIT_DST" "git config"
+  link_path "$GITIGNORE_SRC" "$GITIGNORE_DST" "global gitignore"
 
   # Remind about per-machine identity if not yet configured
   if [[ ! -f "$HOME/.gitconfig.local" ]]; then
@@ -298,6 +306,8 @@ main() {
   fi
 
   install_starship
+  install_tpm
+  install_tmux_plugins
   check_deps
 
   if (( LINK_CONFLICTS > 0 )); then
