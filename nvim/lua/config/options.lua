@@ -10,3 +10,5 @@ vim.opt.listchars = {
 }
 
 vim.opt.mouse = ""
+
+vim.opt.wrap = true
